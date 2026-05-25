@@ -1090,7 +1090,48 @@ class Game {
   constructor() {
     this.highScore = parseInt(localStorage.getItem('neonBlasterHighScore')) || 0;
     this.difficulty = localStorage.getItem('neonBlasterDifficulty') || 'normal';
+    this.gameState = 'menu';
+    this.selectedDifficulty = this.difficulty;
+    this.stats = this.initStats();
+    this.achievements = this.initAchievements();
+    this.achievementsUnlocked = JSON.parse(localStorage.getItem('neonBlasterAchievements')) || [];
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.maxCombo = 0;
+    this.difficultyLabel = { easy: '簡單', normal: '普通', hard: '困難' };
+    this.menuSelection = 0;
     this.reset();
+  }
+
+  initStats() {
+    return {
+      survivalTime: 0,
+      damageDealt: 0,
+      maxWave: 0,
+      powerupsCollected: 0,
+      maxLevel: 1,
+      totalShots: 0,
+      hits: 0,
+      accuracy: 0,
+      bossKilled: false,
+    };
+  }
+
+  initAchievements() {
+    return [
+      { id: 'first_blood', name: '初試啼聲', desc: '殺死第一個敵人', icon: '🎯' },
+      { id: 'kill_10', name: '小試身手', desc: '累計擊殺10', icon: '🔟' },
+      { id: 'kill_50', name: '殺敵好手', desc: '累計擊殺50', icon: '💀' },
+      { id: 'kill_100', name: '百連斬', desc: '累計擊殺100', icon: '⚔️' },
+      { id: 'combo_10', name: '連擊新手', desc: '達成10連擊', icon: '🔥' },
+      { id: 'combo_25', name: '連擊達人', desc: '達成25連擊', icon: '✨' },
+      { id: 'level_5', name: '初窺門徑', desc: '升到5級', icon: '🌟' },
+      { id: 'level_10', name: '略有小成', desc: '升到10級', icon: '⭐' },
+      { id: 'wave_10', name: '波瀾不驚', desc: '到達第10波', icon: '🌊' },
+      { id: 'no_hit', name: '滴水不漏', desc: '無傷通關', icon: '🛡️' },
+      { id: 'boss_slayer', name: 'Boss殺手', desc: '擊敗Boss', icon: '👹' },
+      { id: 'score_5000', name: '高分選手', desc: '分數超過5000', icon: '🏆' },
+    ];
   }
 
   reset(difficulty = this.difficulty) {
