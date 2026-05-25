@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Blaster - 網頁小遊戲</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #0a0a15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-family: 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+#gameInfo {
+  color: #00ffcc;
+  font-size: 14px;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+
+canvas {
+  border: 2px solid #00ffcc;
+  box-shadow: 0 0 30px #00ffcc40, 0 0 60px #00ffcc20;
+  border-radius: 4px;
+}
+
+#controls {
+  margin-top: 12px;
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+}
+
+#controls span {
+  color: #00ffcc;
+  background: #00ffcc15;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid #00ffcc40;
+}
+
+#codingConcept {
+  margin-top: 10px;
+  color: #ff6b9d;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+</style>
+</head>
+<body>
+
+<div id="gameInfo">NEON BLASTER v1.0</div>
+<canvas id="gameCanvas"></canvas>
+<div id="controls">
+  <span>↑↓←→</span> 移動 &nbsp;|&nbsp;
+  <span>空白鍵</span> 發射 &nbsp;|&nbsp;
+  <span>P</span> 暫停 &nbsp;|&nbsp;
+  <span>R</span> 重新開始
+</div>
+<div id="codingConcept">本遊戲使用 ES6 Class 開發 — ES6 OOP 設計模式</div>
+
+<script>
+// ==================== 遊戲初始化 ====================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+canvas.width = 800;
+canvas.height = 600;
+
+// 背景圖片
+let backgroundImage = null;
+(function initBackground() {
+  const img = new Image();
+  img.onload = () => { backgroundImage = img; };
+  img.src = 'background.jpg';
+})();
+
+// 顏色配置
+const COLORS = {
+  player: '#00ffcc',
+  playerInner: '#aaffee',
+  bullet: '#ffee00',
+  enemyBasic: '#ff4466',
+  enemyFast: '#ff8800',
+  enemyTank: '#aa44ff',
+  enemyShooter: '#00aaff',
+  enemyExploder: '#ff2200',
+  enemyBoss: '#ff00ff',
+  powerup: '#44ff88',
+  powerupHealth: '#44ff44',
+  powerupBomb: '#ff6600',
+  powerupShield: '#00ccff',
+  powerupScore: '#ffff00',
+  powerupSpeed: '#ff00ff',
+  powerupFreeze: '#00ffff',
+  powerupMagnet: '#ffaa00',
+  bgLine: '#151525',
+  text: '#ffffff',
+  score: '#ffee00',
+};
+
+// ==================== ES6 OOP 類別設計 ====================
+
+/**
+ * GameObject 基础类 — 演示 OOP 封裝
+ * 所有游戏对象都继承此类
+ */
+class GameObject {
+  constructor(x, y, radius, color) {
+    this.x = x;
+    this.y = y;
+    this.radius = radius;
+    this.color = color;
+    this.active = true;
+  }
+
+  // 封裝：draw 方法被子类覆寫（多形）
+  draw(ctx) {
+    if (!this.active) return;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+  }
+
+  isOffScreen(w, h) {
+    return this.x < -50 || this.x > w + 50 || this.y < -50 || this.y > h + 50;
+  }
+
+  collidesWith(other) {
+    const dx = this.x - other.x;
+    const dy = this.y - other.y;
+    return Math.sqrt(dx * dx + dy * dy) < this.radius + other.radius;
+  }
+}
+
+/**
+ * Player 玩家類別 — 演示 ES6 Class 繼承
+ * 继承自 GameObject，并扩展了移动、射击等方法
+ */
+class Player extends GameObject {
+  constructor(x, y, difficulty = 'normal') {
+    super(x, y, 18, COLORS.player);
+    this.speed = 6;
+    this.health = 150;
+    this.maxHealth = 150;
+    this.bullets = [];
+    this.reloadTime = 0;
+    this.maxReloadTime = 8;
+    this.invincibleTime = 0;
+    this.score = 0;
+    this.killCount = 0;
+    this.powerLevel = 1;
+    this.powerTimer = 0;
+    this.shieldTime = 0;
+    this.scoreMultiplier = 1;
+    this.scoreMultiplierTimer = 0;
+    this.speedBoostTime = 0;
+    this.freezeTime = 0;
+    this.magnetTime = 0;
+
+    // 根據難度調整屬性
+    if (difficulty === 'easy') {
+      this.health = 200;
+      this.maxHealth = 200;
+      this.speed = 7;
+    } else if (difficulty === 'hard') {
+      this.health = 100;
+      this.maxHealth = 100;
+      this.speed = 5;
+      this.maxReloadTime = 12;
+    }
+  }
+
+  // 方法覆寫（多形）
+  draw(ctx) {
+    if (!this.active) return;
+
+    // 無敵閃爍效果
+    if (this.invincibleTime > 0 && Math.floor(this.invincibleTime / 5) % 2 === 0) {
+      return;
+    }
+
+    // 發光效果
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+
+    // 玩家本體
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+
+    // 內部核心
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.playerInner;
+    ctx.fill();
+
+    // 護盾效果
+    if (this.shieldTime > 0) {
+      ctx.strokeStyle = COLORS.powerupShield;
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = COLORS.powerupShield;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius + 6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 速度提升光環
+    if (this.speedBoostTime > 0) {
+      ctx.strokeStyle = COLORS.powerupSpeed;
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = COLORS.powerupSpeed;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 凍結光環
+    if (this.freezeTime > 0) {
+      ctx.strokeStyle = COLORS.powerupFreeze;
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = COLORS.powerupFreeze;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius + 14, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 磁鐵光環
+    if (this.magnetTime > 0) {
+      ctx.strokeStyle = COLORS.powerupMagnet;
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = COLORS.powerupMagnet;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius + 18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.shadowBlur = 0;
+  }
+
+  update(keys, canvas_w, canvas_h) {
+    const currentSpeed = this.speedBoostTime > 0 ? this.speed * 1.6 : this.speed;
+    if (keys['ArrowLeft'] || keys['KeyA']) this.x -= currentSpeed;
+    if (keys['ArrowRight'] || keys['KeyD']) this.x += currentSpeed;
+    if (keys['ArrowUp'] || keys['KeyW']) this.y -= currentSpeed;
+    if (keys['ArrowDown'] || keys['KeyS']) this.y += currentSpeed;
+
+    this.x = Math.max(this.radius, Math.min(canvas_w - this.radius, this.x));
+    this.y = Math.max(this.radius, Math.min(canvas_h - this.radius, this.y));
+
+    if (this.reloadTime > 0) this.reloadTime--;
+    if (this.invincibleTime > 0) this.invincibleTime--;
+    if (this.powerTimer > 0) {
+      this.powerTimer--;
+      if (this.powerTimer <= 0) this.powerLevel = 1;
+    }
+    if (this.shieldTime > 0) this.shieldTime--;
+    if (this.scoreMultiplierTimer > 0) {
+      this.scoreMultiplierTimer--;
+      if (this.scoreMultiplierTimer <= 0) this.scoreMultiplier = 1;
+    }
+    if (this.speedBoostTime > 0) this.speedBoostTime--;
+    if (this.freezeTime > 0) this.freezeTime--;
+    if (this.magnetTime > 0) this.magnetTime--;
+
+    this.bullets = this.bullets.filter(b => !b.isOffScreen(canvas_w, canvas_h) && b.active);
+    this.bullets.forEach(b => b.update());
+  }
+
+  shoot() {
+    if (this.reloadTime > 0) return;
+    this.reloadTime = this.maxReloadTime;
+
+    if (this.powerLevel >= 3) {
+      this.bullets.push(new Bullet(this.x, this.y - this.radius));
+      this.bullets.push(new Bullet(this.x - 8, this.y));
+      this.bullets.push(new Bullet(this.x + 8, this.y));
+    } else if (this.powerLevel >= 2) {
+      this.bullets.push(new Bullet(this.x, this.y - this.radius));
+      this.bullets.push(new Bullet(this.x - 6, this.y));
+    } else {
+      this.bullets.push(new Bullet(this.x, this.y - this.radius));
+    }
+  }
+
+  takeDamage(amount) {
+    if (this.shieldTime > 0) return;
+    if (this.invincibleTime > 0) return;
+    this.health -= amount;
+    this.invincibleTime = 60;
+    if (this.health <= 0) this.active = false;
+  }
+
+  addPower() {
+    this.powerLevel = Math.min(3, this.powerLevel + 1);
+    this.powerTimer = 300;
+  }
+
+  addHealth(amount) {
+    this.health = Math.min(this.maxHealth, this.health + amount);
+  }
+
+  addShield() {
+    this.shieldTime = 300;
+  }
+
+  addScoreMultiplier() {
+    this.scoreMultiplier = 2;
+    this.scoreMultiplierTimer = 300;
+  }
+
+  addSpeedBoost() {
+    this.speedBoostTime = 300;
+  }
+
+  addFreeze() {
+    this.freezeTime = 300;
+  }
+
+  addMagnet() {
+    this.magnetTime = 300;
+  }
+}
+
+/**
+ * Bullet 子彈類別
+ * 演示簡單的類別繼承
+ */
+class Bullet extends GameObject {
+  constructor(x, y) {
+    super(x, y, 5, COLORS.bullet);
+    this.speed = 10;
+    this.trail = [];
+  }
+
+  update() {
+    this.trail.push({ x: this.x, y: this.y });
+    if (this.trail.length > 8) this.trail.shift();
+    this.y -= this.speed;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    // 繪製拖尾
+    for (let i = 0; i < this.trail.length; i++) {
+      const alpha = (i / this.trail.length) * 0.6;
+      const size = (i / this.trail.length) * this.radius;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(this.trail[i].x, this.trail[i].y, size, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * Enemy 工廠類別 — 演示工廠模式 Factory Pattern
+ * 根據型態創建不同的敵人
+ */
+class EnemyFactory {
+  static create(x, y, type = 'basic', wave = 1) {
+    switch (type) {
+      case 'fast':
+        return new FastEnemy(x, y);
+      case 'tank':
+        return new TankEnemy(x, y);
+      case 'shooter':
+        return new ShooterEnemy(x, y);
+      case 'exploder':
+        return new ExploderEnemy(x, y);
+      case 'boss':
+        return new BossEnemy(x, y);
+      default:
+        return new BasicEnemy(x, y);
+    }
+  }
+}
+
+/**
+ * BasicEnemy 普通敵人
+ * 演示類別繼承
+ */
+class BasicEnemy extends GameObject {
+  constructor(x, y) {
+    super(x, y, 14, COLORS.enemyBasic);
+    this.speedY = 1.5 + Math.random();
+    this.health = 30;
+    this.scoreValue = 10;
+    this.damage = 10;
+  }
+
+  update(targetX, targetY, freezeFactor = 1) {
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 0) {
+      this.x += (dx / dist) * this.speedY * freezeFactor;
+      this.y += (dy / dist) * this.speedY * freezeFactor;
+    }
+  }
+
+  hit(damage) {
+    this.health -= damage;
+    if (this.health <= 0) {
+      this.active = false;
+      return true;
+    }
+    return false;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    // 眼睛
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(this.x - 4, this.y - 3, 3, 0, Math.PI * 2);
+    ctx.arc(this.x + 4, this.y - 3, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * FastEnemy 快速敵人 — 演示繼承擴展
+ */
+class FastEnemy extends BasicEnemy {
+  constructor(x, y) {
+    super(x, y);
+    this.color = COLORS.enemyFast;
+    this.radius = 10;
+    this.speedY = 3 + Math.random();
+    this.health = 20;
+    this.scoreValue = 20;
+    this.damage = 5;
+  }
+}
+
+/**
+ * TankEnemy 坦克敵人 — 演示繼承擴展
+ */
+class TankEnemy extends BasicEnemy {
+  constructor(x, y) {
+    super(x, y);
+    this.color = COLORS.enemyTank;
+    this.radius = 22;
+    this.speedY = 0.8;
+    this.health = 80;
+    this.scoreValue = 30;
+    this.damage = 20;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * ShooterEnemy 射擊敵人 — 會向玩家發射子彈
+ */
+class ShooterEnemy extends BasicEnemy {
+  constructor(x, y) {
+    super(x, y);
+    this.color = COLORS.enemyShooter;
+    this.radius = 16;
+    this.speedY = 1.0;
+    this.health = 60;
+    this.scoreValue = 20;
+    this.damage = 8;
+    this.shootTimer = 0;
+    this.maxShootTimer = 120;
+    this.bullets = [];
+  }
+
+  update(targetX, targetY, freezeFactor = 1) {
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 0) {
+      this.x += (dx / dist) * this.speedY * freezeFactor;
+      this.y += (dy / dist) * this.speedY * freezeFactor;
+    }
+    this.shootTimer++;
+    if (this.shootTimer >= this.maxShootTimer) {
+      this.shootTimer = 0;
+      this.bullets.push(new EnemyBullet(this.x, this.y + this.radius));
+    }
+    this.bullets = this.bullets.filter(b => !b.isOffScreen(canvas.width, canvas.height) && b.active);
+    this.bullets.forEach(b => b.update());
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = this.color;
+    // 菱形身體
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y - this.radius);
+    ctx.lineTo(this.x + this.radius, this.y);
+    ctx.lineTo(this.x, this.y + this.radius);
+    ctx.lineTo(this.x - this.radius, this.y);
+    ctx.closePath();
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    // 眼睛
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(this.x - 5, this.y - 2, 3, 0, Math.PI * 2);
+    ctx.arc(this.x + 5, this.y - 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * EnemyBullet 敵人子彈
+ */
+class EnemyBullet extends GameObject {
+  constructor(x, y) {
+    super(x, y, 4, '#00aaff');
+    this.speed = 4;
+  }
+
+  update() {
+    this.y += this.speed;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * ExploderEnemy 自爆敵人 — 靠近玩家時會爆炸
+ */
+class ExploderEnemy extends BasicEnemy {
+  constructor(x, y) {
+    super(x, y);
+    this.color = COLORS.enemyExploder;
+    this.radius = 12;
+    this.speedY = 1.5;
+    this.health = 30;
+    this.scoreValue = 12;
+    this.damage = 15;
+    this.explosionRadius = 60;
+    this.primed = false;
+  }
+
+  update(targetX, targetY, freezeFactor = 1) {
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // 靠近玩家時加速並進入引爆狀態
+    if (dist < 150) {
+      this.primed = true;
+      this.speedY = 4;
+    }
+
+    if (dist > 0) {
+      this.x += (dx / dist) * this.speedY * freezeFactor;
+      this.y += (dy / dist) * this.speedY * freezeFactor;
+    }
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    ctx.shadowBlur = this.primed ? 20 : 10;
+    ctx.shadowColor = this.color;
+    // 六邊形
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 3) * i - Math.PI / 2;
+      const px = this.x + Math.cos(angle) * this.radius;
+      const py = this.y + Math.sin(angle) * this.radius;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = this.primed ? '#ff0000' : this.color;
+    ctx.fill();
+    // 引爆時閃爍
+    if (this.primed && Math.floor(Date.now() / 100) % 2 === 0) {
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * BossEnemy 首領敵人 — 高血量、高傷害、會射擊
+ */
+class BossEnemy extends BasicEnemy {
+  constructor(x, y, wave = 1) {
+    super(x, y);
+    this.color = COLORS.enemyBoss;
+    this.radius = 35;
+    this.speedY = 0.4;
+    this.health = 300 + wave * 30;
+    this.maxHealth = this.health;
+    this.scoreValue = 150;
+    this.damage = 20;
+    this.shootTimer = 0;
+    this.maxShootTimer = 60;
+    this.bullets = [];
+    this.horizontalMove = 1;
+  }
+
+  update(targetX, targetY, freezeFactor = 1) {
+    // Boss 左右移動
+    this.x += this.horizontalMove * 2;
+    if (this.x <= this.radius + 20 || this.x >= canvas.width - this.radius - 20) {
+      this.horizontalMove *= -1;
+    }
+
+    // Boss 緩慢下降
+    if (this.y < 100) {
+      this.y += this.speedY;
+    }
+
+    // 定時射擊
+    this.shootTimer++;
+    if (this.shootTimer >= this.maxShootTimer) {
+      this.shootTimer = 0;
+      // 發射三發子彈
+      this.bullets.push(new EnemyBullet(this.x - 20, this.y + this.radius));
+      this.bullets.push(new EnemyBullet(this.x, this.y + this.radius));
+      this.bullets.push(new EnemyBullet(this.x + 20, this.y + this.radius));
+    }
+    this.bullets = this.bullets.filter(b => !b.isOffScreen(canvas.width, canvas.height) && b.active);
+    this.bullets.forEach(b => b.update());
+  }
+
+  hit(damage) {
+    this.health -= damage;
+    if (this.health <= 0) {
+      this.active = false;
+      return true;
+    }
+    return false;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = this.color;
+    // 八邊形 Boss
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI / 4) * i - Math.PI / 2;
+      const px = this.x + Math.cos(angle) * this.radius;
+      const py = this.y + Math.sin(angle) * this.radius;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.strokeStyle = '#ff99ff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 眼睛
+    ctx.fillStyle = '#ff0000';
+    ctx.beginPath();
+    ctx.arc(this.x - 12, this.y - 5, 6, 0, Math.PI * 2);
+    ctx.arc(this.x + 12, this.y - 5, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 血條
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(this.x - 40, this.y - this.radius - 15, 80, 8);
+    ctx.fillStyle = '#ff00ff';
+    ctx.fillRect(this.x - 40, this.y - this.radius - 15, 80 * (this.health / this.maxHealth), 8);
+  }
+}
+
+/**
+ * PowerUp 道具類別（攻擊）
+ */
+class PowerUp extends GameObject {
+  constructor(x, y) {
+    super(x, y, 12, COLORS.powerup);
+    this.type = 'power';
+    this.bobOffset = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.y += 0.5;
+    this.bobOffset += 0.08;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const bobY = Math.sin(this.bobOffset) * 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+    if (this.type === 'health') {
+      // 愛心形狀
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y - 8 + bobY);
+      ctx.bezierCurveTo(this.x + 10, this.y - 18 + bobY, this.x + 12, this.y - 5 + bobY, this.x, this.y + 8 + bobY);
+      ctx.bezierCurveTo(this.x - 12, this.y - 5 + bobY, this.x - 10, this.y - 18 + bobY, this.x, this.y - 8 + bobY);
+      ctx.fillStyle = COLORS.powerupHealth;
+      ctx.fill();
+    } else {
+      // 畫方塊
+      ctx.beginPath();
+      ctx.rect(this.x - 10, this.y - 10 + bobY, 20, 20);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * HealthUp 回血道具
+ */
+class HealthUp extends GameObject {
+  constructor(x, y) {
+    super(x, y, 12, COLORS.powerupHealth);
+    this.bobOffset = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.y += 0.5;
+    this.bobOffset += 0.08;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const bobY = Math.sin(this.bobOffset) * 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+    // 愛心形狀
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y - 8 + bobY);
+    ctx.bezierCurveTo(this.x + 10, this.y - 18 + bobY, this.x + 12, this.y - 5 + bobY, this.x, this.y + 8 + bobY);
+    ctx.bezierCurveTo(this.x - 12, this.y - 5 + bobY, this.x - 10, this.y - 18 + bobY, this.x, this.y - 8 + bobY);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * BombUp 炸彈道具 — 清除畫面上所有敵人
+ */
+class BombUp extends GameObject {
+  constructor(x, y) {
+    super(x, y, 14, COLORS.powerupBomb);
+    this.bobOffset = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.y += 0.5;
+    this.bobOffset += 0.08;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const bobY = Math.sin(this.bobOffset) * 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+    // 炸彈形狀（圓形+引線）
+    ctx.beginPath();
+    ctx.arc(this.x, this.y + bobY, 10, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    // 引線
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y - 10 + bobY);
+    ctx.lineTo(this.x + 3, this.y - 16 + bobY);
+    ctx.strokeStyle = '#ffff00';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * ShieldUp 護盾道具
+ */
+class ShieldUp extends GameObject {
+  constructor(x, y) {
+    super(x, y, 12, COLORS.powerupShield);
+    this.bobOffset = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.y += 0.5;
+    this.bobOffset += 0.08;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const bobY = Math.sin(this.bobOffset) * 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+    // 六邊形護盾
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 3) * i - Math.PI / 2;
+      const px = this.x + Math.cos(angle) * 12;
+      const py = this.y + Math.sin(angle) * 12 + bobY;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * ScoreUp 分數加成道具
+ */
+class ScoreUp extends GameObject {
+  constructor(x, y) {
+    super(x, y, 12, COLORS.powerupScore);
+    this.bobOffset = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.y += 0.5;
+    this.bobOffset += 0.08;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const bobY = Math.sin(this.bobOffset) * 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+    // 星形
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const outerAngle = (Math.PI * 2 / 5) * i - Math.PI / 2;
+      const innerAngle = outerAngle + Math.PI / 5;
+      const ox = this.x + Math.cos(outerAngle) * 12;
+      const oy = this.y + Math.sin(outerAngle) * 12 + bobY;
+      const ix = this.x + Math.cos(innerAngle) * 5;
+      const iy = this.y + Math.sin(innerAngle) * 5 + bobY;
+      if (i === 0) ctx.moveTo(ox, oy);
+      else ctx.lineTo(ox, oy);
+      ctx.lineTo(ix, iy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * SpeedUp 速度加成道具
+ */
+class SpeedUp extends GameObject {
+  constructor(x, y) {
+    super(x, y, 12, COLORS.powerupSpeed);
+    this.bobOffset = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.y += 0.5;
+    this.bobOffset += 0.08;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const bobY = Math.sin(this.bobOffset) * 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+    // 閃電形狀
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y - 12 + bobY);
+    ctx.lineTo(this.x - 6, this.y + 2 + bobY);
+    ctx.lineTo(this.x + 2, this.y + 2 + bobY);
+    ctx.lineTo(this.x, this.y + 12 + bobY);
+    ctx.lineTo(this.x + 6, this.y - 2 + bobY);
+    ctx.lineTo(this.x - 2, this.y - 2 + bobY);
+    ctx.closePath();
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * FreezeUp 凍結道具 — 減慢所有敵人
+ */
+class FreezeUp extends GameObject {
+  constructor(x, y) {
+    super(x, y, 12, COLORS.powerupFreeze);
+    this.bobOffset = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.y += 0.5;
+    this.bobOffset += 0.08;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const bobY = Math.sin(this.bobOffset) * 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+    // 雪花形狀
+    ctx.fillStyle = this.color;
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 3) * i;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y + bobY);
+      ctx.lineTo(
+        this.x + Math.cos(angle) * 12,
+        this.y + Math.sin(angle) * 12 + bobY
+      );
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = this.color;
+      ctx.stroke();
+      // 雪花的分支
+      ctx.beginPath();
+      const midX = this.x + Math.cos(angle) * 7;
+      const midY = this.y + Math.sin(angle) * 7 + bobY;
+      ctx.moveTo(midX - Math.cos(angle + Math.PI/2) * 4, midY - Math.sin(angle + Math.PI/2) * 4);
+      ctx.lineTo(midX + Math.cos(angle + Math.PI/2) * 4, midY + Math.sin(angle + Math.PI/2) * 4);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * MagnetUp 磁鐵道具 — 吸引附近道具
+ */
+class MagnetUp extends GameObject {
+  constructor(x, y) {
+    super(x, y, 12, COLORS.powerupMagnet);
+    this.bobOffset = Math.random() * Math.PI * 2;
+  }
+
+  update() {
+    this.y += 0.5;
+    this.bobOffset += 0.08;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const bobY = Math.sin(this.bobOffset) * 3;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = this.color;
+    // U 形磁鐵
+    ctx.beginPath();
+    ctx.arc(this.x, this.y + bobY, 10, 0, Math.PI, false);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = this.color;
+    ctx.stroke();
+    // 磁鐵兩端
+    ctx.fillStyle = '#ff4444';
+    ctx.fillRect(this.x - 10, this.y - 6 + bobY, 5, 10);
+    ctx.fillStyle = '#4444ff';
+    ctx.fillRect(this.x + 5, this.y - 6 + bobY, 5, 10);
+    ctx.shadowBlur = 0;
+  }
+}
+
+/**
+ * Particle 粒子效果 — 演示封裝
+ */
+class Particle extends GameObject {
+  constructor(x, y, color) {
+    super(x, y, 3, color);
+    this.vx = (Math.random() - 0.5) * 6;
+    this.vy = (Math.random() - 0.5) * 6;
+    this.life = 30;
+    this.maxLife = 30;
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.life--;
+    this.radius = Math.max(1, this.radius - 0.1);
+    if (this.life <= 0) this.active = false;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const alpha = Math.floor((this.life / this.maxLife) * 255);
+    ctx.globalAlpha = alpha / 255;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/**
+ * FloatingText 浮動文字
+ */
+class FloatingText {
+  constructor(x, y, text, color) {
+    this.x = x;
+    this.y = y;
+    this.text = text;
+    this.color = color;
+    this.life = 40;
+    this.vy = -1.5;
+    this.active = true;
+  }
+
+  update() {
+    this.y += this.vy;
+    this.life--;
+    if (this.life <= 0) this.active = false;
+  }
+
+  draw(ctx) {
+    if (!this.active) return;
+    const alpha = Math.floor((this.life / 40) * 255);
+    ctx.globalAlpha = alpha / 255;
+    ctx.fillStyle = this.color;
+    ctx.font = 'bold 16px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.text, this.x, this.y);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ==================== 遊戲主類別 ====================
+
+class Game {
+  constructor() {
+    this.highScore = parseInt(localStorage.getItem('neonBlasterHighScore')) || 0;
+    this.difficulty = localStorage.getItem('neonBlasterDifficulty') || 'normal';
+    this.reset();
+  }
+
+  reset(difficulty = this.difficulty) {
+    this.player = new Player(canvas.width / 2, canvas.height - 80, difficulty);
+    this.enemies = [];
+    this.powerups = [];
+    this.particles = [];
+    this.floatingTexts = [];
+    this.wave = 1;
+    this.enemySpawnTimer = 0;
+    this.powerupSpawnTimer = 0;
+    this.gameOver = false;
+    this.gameWon = false;
+    this.paused = false;
+    this.showFactoryPattern = true;
+    this.screenShake = 0;
+  }
+
+  saveHighScore() {
+    if (this.player.score > this.highScore) {
+      this.highScore = this.player.score;
+      localStorage.setItem('neonBlasterHighScore', this.highScore);
+    }
+  }
+
+  spawnEnemy() {
+    const margin = 50;
+    const x = margin + Math.random() * (canvas.width - margin * 2);
+    const y = -30;
+    let type = 'basic';
+
+    // 根據波次決定敵人類型
+    const rand = Math.random();
+    if (this.wave >= 10) {
+      // 第10波+：有機會生成Boss
+      if (rand < 0.05 && this.enemies.filter(e => e instanceof BossEnemy).length === 0) {
+        type = 'boss';
+        this.enemies.push(EnemyFactory.create(canvas.width / 2, -50, type, this.wave));
+        return;
+      }
+      // shooter
+      if (rand < 0.2) type = 'shooter';
+      else if (rand < 0.35) type = 'exploder';
+      else if (rand < 0.55) type = 'tank';
+      else if (rand < 0.75) type = 'fast';
+    } else if (this.wave >= 6) {
+      // 第6波+：shooter 和 exploder
+      if (rand < 0.2) type = 'shooter';
+      else if (rand < 0.35) type = 'exploder';
+      else if (rand < 0.55) type = 'tank';
+      else if (rand < 0.75) type = 'fast';
+    } else if (this.wave >= 3) {
+      // 第3波+：tank 和 fast
+      if (rand < 0.25) type = 'tank';
+      else if (rand < 0.5) type = 'fast';
+    }
+
+    this.enemies.push(EnemyFactory.create(x, y, type, this.wave));
+  }
+
+  spawnPowerUp(x, y) {
+    const rand = Math.random();
+    if (rand < 0.18) {
+      this.powerups.push(new HealthUp(x, y));
+    } else if (rand < 0.32) {
+      this.powerups.push(new PowerUp(x, y));
+    } else if (rand < 0.44) {
+      this.powerups.push(new BombUp(x, y));
+    } else if (rand < 0.56) {
+      this.powerups.push(new ShieldUp(x, y));
+    } else if (rand < 0.68) {
+      this.powerups.push(new ScoreUp(x, y));
+    } else if (rand < 0.80) {
+      this.powerups.push(new SpeedUp(x, y));
+    } else if (rand < 0.90) {
+      this.powerups.push(new FreezeUp(x, y));
+    } else {
+      this.powerups.push(new MagnetUp(x, y));
+    }
+  }
+
+  createExplosion(x, y, color, count = 10) {
+    for (let i = 0; i < count; i++) {
+      this.particles.push(new Particle(x, y, color));
+    }
+  }
+
+  handleInput(e) {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (!this.gameOver && !this.paused) this.player.shoot();
+    }
+    if (e.code === 'KeyP') this.paused = !this.paused;
+    if (e.code === 'KeyR') this.reset();
+    if (e.code === 'KeyD' && (this.gameOver || this.gameWon)) {
+      this.showDifficultySelect();
+    }
+  }
+
+  showDifficultySelect() {
+    const sel = prompt('選擇難度 (1=簡單, 2=普通, 3=困難):');
+    if (sel === '1') {
+      this.difficulty = 'easy';
+    } else if (sel === '3') {
+      this.difficulty = 'hard';
+    } else {
+      this.difficulty = 'normal';
+    }
+    localStorage.setItem('neonBlasterDifficulty', this.difficulty);
+    this.reset();
+  }
+
+  update() {
+    if (this.paused || this.gameOver || this.gameWon) return;
+
+    // 更新玩家
+    this.player.update(this.keys, canvas.width, canvas.height);
+
+    // 生成敵人
+    this.enemySpawnTimer++;
+    let baseSpawnRate = Math.max(30, 80 - this.wave * 3);
+    if (this.difficulty === 'easy') baseSpawnRate += 15;
+    if (this.difficulty === 'hard') baseSpawnRate -= 10;
+    const spawnRate = Math.max(15, baseSpawnRate);
+    if (this.enemySpawnTimer >= spawnRate) {
+      this.spawnEnemy();
+      this.enemySpawnTimer = 0;
+      if (Math.random() < 0.08) this.wave++;
+    }
+
+    // 生成道具
+    this.powerupSpawnTimer++;
+    if (this.powerupSpawnTimer >= 300) {
+      const px = 50 + Math.random() * (canvas.width - 100);
+      this.spawnPowerUp(px, -20);
+      this.powerupSpawnTimer = 0;
+    }
+
+    // 更新敵人
+    this.enemies = this.enemies.filter(e => !e.isOffScreen(canvas.width, canvas.height) && e.active);
+    const freezeFactor = this.player.freezeTime > 0 ? 0.4 : 1;
+    this.enemies.forEach(e => e.update(this.player.x, this.player.y, freezeFactor));
+
+    // 更新道具
+    this.powerups = this.powerups.filter(p => !p.isOffScreen(canvas.width, canvas.height) && p.active);
+    this.powerups.forEach(p => {
+      p.update();
+      // 磁鐵效果：吸引道具靠近玩家
+      if (this.player.magnetTime > 0) {
+        const dx = this.player.x - p.x;
+        const dy = this.player.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < 200) {
+          p.x += (dx / dist) * 3;
+          p.y += (dy / dist) * 3;
+        }
+      }
+    });
+
+    // 粒子
+    this.particles = this.particles.filter(p => p.active);
+    this.particles.forEach(p => p.update());
+
+    // 浮動文字
+    this.floatingTexts = this.floatingTexts.filter(t => t.active);
+    this.floatingTexts.forEach(t => t.update());
+
+    // 子彈碰撞敵人
+    this.player.bullets.forEach(b => {
+      this.enemies.forEach(enemy => {
+        if (b.active && enemy.active && b.collidesWith(enemy)) {
+          b.active = false;
+          if (enemy.hit(35)) {
+            this.player.score += enemy.scoreValue * this.player.scoreMultiplier;
+            this.player.killCount++;
+            this.createExplosion(enemy.x, enemy.y, enemy.color);
+            this.floatingTexts.push(new FloatingText(enemy.x, enemy.y, `+${enemy.scoreValue}`, '#ffee00'));
+          }
+        }
+      });
+    });
+
+    // 敵人碰撞玩家
+    this.enemies.forEach(enemy => {
+      if (enemy.active && this.player.collidesWith(enemy)) {
+        this.player.takeDamage(enemy.damage);
+        enemy.active = false;
+        this.createExplosion(enemy.x, enemy.y, '#ff4466', 15);
+        this.screenShake = 10;
+        this.floatingTexts.push(new FloatingText(
+          this.player.x, this.player.y - 30, `-${enemy.damage}`, '#ff4466'
+        ));
+      }
+      // 射擊敵人的子彈碰撞玩家
+      if (enemy.bullets) {
+        enemy.bullets.forEach(b => {
+          if (b.active && this.player.collidesWith(b)) {
+            this.player.takeDamage(10);
+            b.active = false;
+            this.createExplosion(b.x, b.y, '#00aaff', 5);
+            this.screenShake = 5;
+          }
+        });
+      }
+    });
+
+    // 道具碰撞玩家
+    this.powerups.forEach(pu => {
+      if (pu.active && this.player.collidesWith(pu)) {
+        if (pu instanceof HealthUp) {
+          this.player.addHealth(30);
+          pu.active = false;
+          this.createExplosion(pu.x, pu.y, COLORS.powerupHealth, 12);
+          this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, '+30 HP', '#44ff44'));
+        } else if (pu instanceof BombUp) {
+          // 炸彈：清除所有敵人
+          pu.active = false;
+          this.enemies.forEach(e => {
+            this.createExplosion(e.x, e.y, e.color, 8);
+            this.player.score += e.scoreValue * 0.5;
+            e.active = false;
+          });
+          this.createExplosion(this.player.x, this.player.y, COLORS.powerupBomb, 30);
+          this.screenShake = 25;
+          this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'BOOM!', '#ff6600'));
+        } else if (pu instanceof ShieldUp) {
+          this.player.addShield();
+          pu.active = false;
+          this.createExplosion(pu.x, pu.y, COLORS.powerupShield, 12);
+          this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'SHIELD!', '#00ccff'));
+        } else if (pu instanceof ScoreUp) {
+          this.player.addScoreMultiplier();
+          pu.active = false;
+          this.createExplosion(pu.x, pu.y, COLORS.powerupScore, 12);
+          this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'x2 SCORE!', '#ffff00'));
+        } else if (pu instanceof SpeedUp) {
+          this.player.addSpeedBoost();
+          pu.active = false;
+          this.createExplosion(pu.x, pu.y, COLORS.powerupSpeed, 12);
+          this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'SPEED!', '#ff00ff'));
+        } else if (pu instanceof FreezeUp) {
+          this.player.addFreeze();
+          pu.active = false;
+          this.createExplosion(pu.x, pu.y, COLORS.powerupFreeze, 12);
+          this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'FREEZE!', '#00ffff'));
+        } else if (pu instanceof MagnetUp) {
+          this.player.addMagnet();
+          pu.active = false;
+          this.createExplosion(pu.x, pu.y, COLORS.powerupMagnet, 12);
+          this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'MAGNET!', '#ffaa00'));
+        } else {
+          this.player.addPower();
+          pu.active = false;
+          this.createExplosion(pu.x, pu.y, COLORS.powerup, 12);
+          this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'POWER UP!', '#44ff88'));
+        }
+      }
+    });
+
+    // 遊戲結束判定
+    if (!this.player.active) {
+      this.gameOver = true;
+    }
+    if (this.wave >= 30) {
+      this.gameWon = true;
+    }
+  }
+
+  draw() {
+    // 畫面震動效果
+    if (this.screenShake > 0) {
+      ctx.save();
+      const shakeX = (Math.random() - 0.5) * this.screenShake;
+      const shakeY = (Math.random() - 0.5) * this.screenShake;
+      ctx.translate(shakeX, shakeY);
+      this.screenShake *= 0.9;
+      if (this.screenShake < 0.5) this.screenShake = 0;
+    }
+
+    // 背景（支援圖片）
+    if (backgroundImage) {
+      ctx.globalAlpha = 0.3;
+      ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1.0;
+    } else {
+      ctx.fillStyle = '#0a0a15';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // 網格背景
+    ctx.strokeStyle = COLORS.bgLine;
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+
+    // 粒子
+    this.particles.forEach(p => p.draw(ctx));
+
+    // 道具
+    this.powerups.forEach(pu => pu.draw(ctx));
+
+    // 敵人
+    this.enemies.forEach(e => {
+      e.draw(ctx);
+      // 繪製射擊敵人的子彈
+      if (e.bullets) e.bullets.forEach(b => b.draw(ctx));
+    });
+
+    // 子彈
+    this.player.bullets.forEach(b => b.draw(ctx));
+
+    // 玩家
+    this.player.draw(ctx);
+
+    // 浮動文字
+    this.floatingTexts.forEach(t => t.draw(ctx));
+
+    // UI
+    this.drawUI();
+
+    // 角色設計模式提示（右下角）
+    this.drawFactoryPattern();
+
+    if (this.gameOver) this.drawGameOver();
+    if (this.gameWon) this.drawGameWon();
+    if (this.paused) this.drawPaused();
+
+    // 結束畫面震動
+    if (this.screenShake > 0) {
+      ctx.restore();
+    }
+  }
+
+  drawUI() {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Segoe UI';
+    ctx.textAlign = 'left';
+
+    // 最高分數
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '12px Segoe UI';
+    ctx.fillText(`最高: ${this.highScore}`, 15, 18);
+
+    // 分數
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Segoe UI';
+    ctx.fillText(`分數: ${this.player.score}`, 15, 38);
+
+    // 擊殺數
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText(`擊殺: ${this.player.killCount}`, 15, 58);
+
+    // 波次
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText(`波次: ${this.wave}`, 15, 71);
+
+    // 功率等級
+    ctx.fillStyle = this.player.powerLevel >= 3 ? '#ffee00' : this.player.powerLevel >= 2 ? '#44ff88' : '#aaaaaa';
+    ctx.fillText(`功率: ${'★'.repeat(this.player.powerLevel)}${'☆'.repeat(3 - this.player.powerLevel)}`, 15, 94);
+
+    // 生命值
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('生命', 15, 118);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(60, 106, 100, 12);
+    ctx.fillStyle = this.player.health > 50 ? '#44ff88' : this.player.health > 25 ? '#ffee00' : '#ff4466';
+    ctx.fillRect(60, 106, Math.max(0, 100 * (this.player.health / this.player.maxHealth)), 12);
+
+    // 護盾狀態
+    if (this.player.shieldTime > 0) {
+      ctx.fillStyle = COLORS.powerupShield;
+      ctx.font = 'bold 14px Segoe UI';
+      ctx.fillText('🛡 護盾 ' + Math.ceil(this.player.shieldTime / 60) + 's', 15, 140);
+    }
+
+    // 分數加成
+    if (this.player.scoreMultiplier > 1) {
+      ctx.fillStyle = COLORS.powerupScore;
+      ctx.font = 'bold 14px Segoe UI';
+      ctx.fillText('x' + this.player.scoreMultiplier + ' 分數 ' + Math.ceil(this.player.scoreMultiplierTimer / 60) + 's', 15, 160);
+    }
+
+    // 速度提升
+    if (this.player.speedBoostTime > 0) {
+      ctx.fillStyle = COLORS.powerupSpeed;
+      ctx.font = 'bold 14px Segoe UI';
+      ctx.fillText('⚡ 加速 ' + Math.ceil(this.player.speedBoostTime / 60) + 's', 15, 178);
+    }
+
+    // 凍結狀態
+    if (this.player.freezeTime > 0) {
+      ctx.fillStyle = COLORS.powerupFreeze;
+      ctx.font = 'bold 14px Segoe UI';
+      ctx.fillText('❄ 凍結 ' + Math.ceil(this.player.freezeTime / 60) + 's', 15, 196);
+    }
+
+    // 磁鐵狀態
+    if (this.player.magnetTime > 0) {
+      ctx.fillStyle = COLORS.powerupMagnet;
+      ctx.font = 'bold 14px Segoe UI';
+      ctx.fillText('🧲 磁鐵 ' + Math.ceil(this.player.magnetTime / 60) + 's', 15, 214);
+    }
+  }
+
+  drawFactoryPattern() {
+    if (!this.showFactoryPattern) return;
+    ctx.fillStyle = '#555';
+    ctx.font = '11px Consolas';
+    ctx.textAlign = 'right';
+    ctx.fillText('Factory Pattern: EnemyFactory.create()', canvas.width - 10, canvas.height - 10);
+  }
+
+  drawGameOver() {
+    this.saveHighScore();
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ff4466';
+    ctx.font = 'bold 48px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 40);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '20px Segoe UI';
+    ctx.fillText(`分數: ${this.player.score}  |  擊殺: ${this.player.killCount}`, canvas.width / 2, canvas.height / 2 + 5);
+    if (this.player.score >= this.highScore && this.player.score > 0) {
+      ctx.fillStyle = '#ffee00';
+      ctx.font = 'bold 18px Segoe UI';
+      ctx.fillText('★ 新紀錄! ★', canvas.width / 2, canvas.height / 2 + 35);
+    }
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '16px Segoe UI';
+    ctx.fillText(`最高分數: ${this.highScore}`, canvas.width / 2, canvas.height / 2 + 65);
+    ctx.fillText('按 R 重新開始  |  按 D 換難度', canvas.width / 2, canvas.height / 2 + 95);
+  }
+
+  drawGameWon() {
+    this.saveHighScore();
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#44ff88';
+    ctx.font = 'bold 48px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('YOU WIN!', canvas.width / 2, canvas.height / 2 - 40);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '20px Segoe UI';
+    ctx.fillText(`總分: ${this.player.score}  |  擊殺: ${this.player.killCount}`, canvas.width / 2, canvas.height / 2 + 5);
+    if (this.player.score >= this.highScore) {
+      ctx.fillStyle = '#ffee00';
+      ctx.font = 'bold 18px Segoe UI';
+      ctx.fillText('★ 新紀錄! ★', canvas.width / 2, canvas.height / 2 + 35);
+    }
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '16px Segoe UI';
+    ctx.fillText(`最高分數: ${this.highScore}`, canvas.width / 2, canvas.height / 2 + 65);
+    ctx.fillText('按 R 再玩一次  |  按 D 換難度', canvas.width / 2, canvas.height / 2 + 95);
+  }
+
+  drawPaused() {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = 'bold 36px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '18px Segoe UI';
+    ctx.fillText('按 P 鍵繼續', canvas.width / 2, canvas.height / 2 + 35);
+  }
+
+  addKey(key) { this.keys[key] = true; }
+  removeKey(key) { this.keys[key] = false; }
+
+  run() {
+    this.keys = {};
+    
+    // 鍵盤監聽
+    window.addEventListener('keydown', e => {
+      this.addKey(e.code);
+      this.handleInput(e);
+    });
+    window.addEventListener('keyup', e => this.removeKey(e.code));
+
+    // 遊戲循環
+    const loop = () => {
+      this.update();
+      this.draw();
+      requestAnimationFrame(loop);
+    };
+    loop();
+  }
+}
+
+// ==================== 啟動遊戲 ====================
+
+const game = new Game();
+game.run();
+</script>
+</body>
+</html>
