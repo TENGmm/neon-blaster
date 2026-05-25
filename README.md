@@ -1,12 +1,11 @@
 # Neon Blaster - 網頁射擊遊戲
 
-![Neon Blaster](https://img.shields.io/badge/version-v1.0-00ffcc?style=flat-square)
+![Neon Blaster](https://img.shields.io/badge/version-v2.0-00ffcc?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Web-orange?style=flat-square)
 
-一個使用原生 HTML5 Canvas + ES6 Class 開發的 2D 射擊遊戲，採用物件導向程式設計（OOP）模式。
+一個使用原生 HTML5 Canvas + ES6 Class 開發的 2D 射擊遊戲，採用物件導向程式設計（OOP）模式，適合做為學習作品集展示。
 
-https://tengmm.github.io/neon-blaster/
 ---
 
 ## 🎮 遊戲玩法
@@ -14,12 +13,53 @@ https://tengmm.github.io/neon-blaster/
 ### 操作方式
 | 按鍵 | 功能 |
 |------|------|
-| `↑ ↓ ← →` | 移動飛船 |
+| `↑ ↓ ← →` 或 `WASD` | 移動飛船 |
 | `空白鍵` | 發射子彈 |
 | `P` | 暫停遊戲 |
-| `R` | 重新開始 |
+| `ESC` | 返回主選單 |
 
-### 敵人類型
+### 主選單操作
+| 按鍵 | 功能 |
+|------|------|
+| `↑ ↓` 或 `W S` | 選擇項目 |
+| `Enter` 或 `空白鍵` | 確認 |
+
+---
+
+## ✨ v2.0 新增功能
+
+### 🏆 成就系統（12個成就）
+| 成就 | 圖示 | 條件 |
+|------|------|------|
+| 初試啼聲 | 🎯 | 殺死第一個敵人 |
+| 小試身手 | 🔟 | 累計擊殺 10 |
+| 殺敵好手 | 💀 | 累計擊殺 50 |
+| 百連斬 | ⚔️ | 累計擊殺 100 |
+| 連擊新手 | 🔥 | 達成 10 連擊 |
+| 連擊達人 | ✨ | 達成 25 連擊 |
+| 初窺門徑 | 🌟 | 升到 5 級 |
+| 略有小成 | ⭐ | 升到 10 級 |
+| 波瀾不驚 | 🌊 | 到達第 10 波 |
+| 滴水不漏 | 🛡️ | 無傷通關 |
+| Boss殺手 | 👹 | 擊敗 Boss |
+| 高分選手 | 🏆 | 分數超過 5000 |
+
+### 🔥 COMBO 連擊系統
+- 2 秒內連續殺敵可累積連擊數
+- 連擊數越高，顯示效果越華麗
+- 10 連擊 = 橙色，20 連擊 = 紫色
+
+### 📊 結算統計
+- **評級系統**：S（傳說）/ A（傑出）/ B（良好）/ C（普通）/ D（繼續努力）
+- **詳細統計**：分數、擊殺數、最高連擊、存活時間、波次、等級、命中率、造成傷害、收集道具
+
+### 📈 經驗值系統
+- 殺敵獲得經驗值
+- 升級提升屬性：回血、加速、射速加快、分數倍率提升
+
+---
+
+## 👾 敵人類型
 
 | 敵人 | 圖示 | 顏色 | 特性 | 血量 | 分數 |
 |------|------|------|------|------|------|
@@ -30,20 +70,19 @@ https://tengmm.github.io/neon-blaster/
 | ExploderEnemy | ◌ | 🔴 #ff2200 | 接近時會爆炸 | 15 | 15 |
 | BossEnemy | ✪ | 🟣 #ff00ff | 巨大，高血量，傷害高 | 500 | 200 |
 
+---
 
+## 🎁 道具系統
 
-> 每種敵人的視覺設計都使用霓虹發光效果（Neon Glow），提升遊戲的視覺體驗。
-
-### 道具系統
 | 道具 | 顏色 | 效果 |
 |------|------|------|
-| 🟢 綠色 | 回復膠囊 | 恢復 30 血量 |
-| 🟠 橙色 | 炸彈 | 清除畫面上所有敵人 |
-| 🔵 藍色 | 護盾 | 無敵 5 秒 |
-| 🟡 黃色 | 分数加成 | 2 倍分數持續 10 秒 |
-| 🟣 紫色 | 速度提升 | 移動速度 +50% |
-| 🔷 青藍色 | 冰凍 | 所有敵人凍結 5 秒 |
-| 🟤 金色 | 磁鐵 | 自動吸引附近道具 10 秒 |
+| 🟢 回復 | 綠色愛心 | 恢復 30 血量 |
+| 🟠 炸彈 | 橙色圓形 | 清除畫面上所有敵人 |
+| 🔵 護盾 | 藍色六邊形 | 無敵 5 秒 |
+| 🟡 分數 | 黃色星星 | 2 倍分數持續 10 秒 |
+| 🟣 速度 | 紫色閃電 | 移動速度 +60% |
+| 🔷 冰凍 | 青色雪花 | 所有敵人凍結 5 秒 |
+| 🟤 磁鐵 | 金色 U 形 | 自動吸引附近道具 |
 
 ---
 
@@ -64,13 +103,22 @@ GameObject（基礎類）
 │   ├── ExploderEnemy
 │   └── BossEnemy
 ├── PowerUp（道具）
-└── Particle（粒子效果）
+│   ├── HealthUp
+│   ├── BombUp
+│   ├── ShieldUp
+│   ├── ScoreUp
+│   ├── SpeedUp
+│   ├── FreezeUp
+│   └── MagnetUp
+├── Particle（粒子效果）
+└── FloatingText（浮動文字）
 ```
 
 ### OOP 設計模式
 - **封裝（Encapsulation）**：屬性與方法包裝在類別內
 - **繼承（Inheritance）**：子類別繼承 `GameObject` 基礎類
 - **多形（Polymorphism）**：不同敵人類別覆寫 `draw()` 和 `update()` 方法
+- **工廠模式（Factory Pattern）**：`EnemyFactory.create()` 統一建立敵人
 
 ---
 
@@ -78,8 +126,9 @@ GameObject（基礎類）
 
 ```
 neon-blaster/
-├── index.html   # 遊戲主檔案（所有程式碼在單一 HTML 檔案中）
-└── README.md    # 本說明文件
+├── index.html      # 遊戲主檔案（所有程式碼在單一 HTML 檔案中）
+├── background.jpg  # 背景圖片
+└── README.md       # 本說明文件
 ```
 
 ---
@@ -108,7 +157,8 @@ neon-blaster/
 - 粒子爆炸效果
 - 子彈軌跡
 - 敵人受擊閃爍
-- 背景星空移動
+- 畫面震動效果
+- 背景網格動畫
 
 ---
 
