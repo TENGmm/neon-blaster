@@ -5,6 +5,7 @@
 ![Platform](https://img.shields.io/badge/platform-Web-orange?style=flat-square)
 
 一個使用原生 HTML5 Canvas + ES6 Class 開發的 2D 射擊遊戲，採用物件導向程式設計（OOP）模式。
+
 https://tengmm.github.io/neon-blaster/
 ---
 
