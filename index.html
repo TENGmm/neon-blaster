@@ -79,6 +79,14 @@ const ctx = canvas.getContext('2d');
 canvas.width = 800;
 canvas.height = 600;
 
+// 背景圖片
+let backgroundImage = null;
+(function initBackground() {
+  const img = new Image();
+  img.onload = () => { backgroundImage = img; };
+  img.src = 'background.jpg';
+})();
+
 // 顏色配置
 const COLORS = {
   player: '#00ffcc',
@@ -1362,9 +1370,15 @@ class Game {
       if (this.screenShake < 0.5) this.screenShake = 0;
     }
 
-    // 背景
-    ctx.fillStyle = '#0a0a15';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 背景（支援圖片）
+    if (backgroundImage) {
+      ctx.globalAlpha = 0.3;
+      ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1.0;
+    } else {
+      ctx.fillStyle = '#0a0a15';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     // 網格背景
     ctx.strokeStyle = COLORS.bgLine;
