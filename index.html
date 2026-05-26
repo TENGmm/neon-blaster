@@ -1357,6 +1357,8 @@ class Game {
     // 統計更新
     this.stats.survivalTime++;
     this.stats.damageDealt += 35;
+    this.stats.totalShots = this.player.bulletsShot;
+    this.stats.accuracy = this.player.bulletsShot > 0 ? Math.round(this.stats.hits / this.player.bulletsShot * 100) : 0;
     if (this.wave > this.stats.maxWave) this.stats.maxWave = this.wave;
 
     // 成就檢查
@@ -1365,10 +1367,11 @@ class Game {
     // 子彈碰撞敵人
     this.player.bullets.forEach(b => {
       this.enemies.forEach(enemy => {
-        if (b.active && enemy.active && b.collidesWith(enemy)) {
+          if (b.active && enemy.active && b.collidesWith(enemy)) {
           b.active = false;
           this.player.bulletsShot++;
           if (enemy.hit(35)) {
+            this.stats.hits++;
             // 擊殺敵人
             this.player.score += enemy.scoreValue * this.player.scoreMultiplier;
             this.player.killCount++;
@@ -1444,11 +1447,13 @@ class Game {
         if (pu instanceof HealthUp) {
           this.player.addHealth(30);
           pu.active = false;
+          this.stats.powerupsCollected++;
           this.createExplosion(pu.x, pu.y, COLORS.powerupHealth, 12);
           this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, '+30 HP', '#44ff44'));
         } else if (pu instanceof BombUp) {
           // 炸彈：清除所有敵人
           pu.active = false;
+          this.stats.powerupsCollected++;
           this.enemies.forEach(e => {
             this.createExplosion(e.x, e.y, e.color, 8);
             this.player.score += e.scoreValue * 0.5;
@@ -1460,31 +1465,37 @@ class Game {
         } else if (pu instanceof ShieldUp) {
           this.player.addShield();
           pu.active = false;
+          this.stats.powerupsCollected++;
           this.createExplosion(pu.x, pu.y, COLORS.powerupShield, 12);
           this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'SHIELD!', '#00ccff'));
         } else if (pu instanceof ScoreUp) {
           this.player.addScoreMultiplier();
           pu.active = false;
+          this.stats.powerupsCollected++;
           this.createExplosion(pu.x, pu.y, COLORS.powerupScore, 12);
           this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'x2 SCORE!', '#ffff00'));
         } else if (pu instanceof SpeedUp) {
           this.player.addSpeedBoost();
           pu.active = false;
+          this.stats.powerupsCollected++;
           this.createExplosion(pu.x, pu.y, COLORS.powerupSpeed, 12);
           this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'SPEED!', '#ff00ff'));
         } else if (pu instanceof FreezeUp) {
           this.player.addFreeze();
           pu.active = false;
+          this.stats.powerupsCollected++;
           this.createExplosion(pu.x, pu.y, COLORS.powerupFreeze, 12);
           this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'FREEZE!', '#00ffff'));
         } else if (pu instanceof MagnetUp) {
           this.player.addMagnet();
           pu.active = false;
+          this.stats.powerupsCollected++;
           this.createExplosion(pu.x, pu.y, COLORS.powerupMagnet, 12);
           this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'MAGNET!', '#ffaa00'));
         } else {
           this.player.addPower();
           pu.active = false;
+          this.stats.powerupsCollected++;
           this.createExplosion(pu.x, pu.y, COLORS.powerup, 12);
           this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 30, 'POWER UP!', '#44ff88'));
         }
@@ -1838,44 +1849,95 @@ class Game {
     this.saveHighScore();
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'center';
+
     ctx.fillStyle = '#ff4466';
     ctx.font = 'bold 48px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 40);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '20px Segoe UI';
-    ctx.fillText(`分數: ${this.player.score}  |  擊殺: ${this.player.killCount}`, canvas.width / 2, canvas.height / 2 + 5);
+    ctx.fillText('GAME OVER', canvas.width / 2, 100);
+
+    // === 戰鬥報告 ===
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#00ffcc';
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = 'bold 22px Segoe UI';
+    ctx.fillText('===== 戰鬥報告 =====', canvas.width / 2, 145);
+    ctx.shadowBlur = 0;
+
+    const s = this.stats;
+    const mins = Math.floor(s.survivalTime / 60);
+    const secs = s.survivalTime % 60;
+    const lines = [
+      `存活時間: ${mins > 0 ? mins + '分' : ''}${secs}秒`,
+      `累計殺敵: ${this.player.killCount}`,
+      `最高COMBO: ${this.maxCombo}`,
+      `遊戲波次: ${this.wave}`,
+      `道具數: ${s.powerupsCollected}`,
+      `EXP/Level: ${Math.floor(this.player.exp)} / LV.${this.player.level}`,
+      `精準度: ${s.accuracy}%`,
+      `總分: ${this.player.score}`,
+    ];
+    ctx.font = '18px Segoe UI';
+    lines.forEach((line, i) => {
+      ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#aaaaaa';
+      ctx.fillText(line, canvas.width / 2, 185 + i * 30);
+    });
+
     if (this.player.score >= this.highScore && this.player.score > 0) {
       ctx.fillStyle = '#ffee00';
-      ctx.font = 'bold 18px Segoe UI';
-      ctx.fillText('★ 新紀錄! ★', canvas.width / 2, canvas.height / 2 + 35);
+      ctx.font = 'bold 20px Segoe UI';
+      ctx.fillText('★ 新紀錄! ★', canvas.width / 2, 430);
     }
     ctx.fillStyle = '#aaaaaa';
     ctx.font = '16px Segoe UI';
-    ctx.fillText(`最高分數: ${this.highScore}`, canvas.width / 2, canvas.height / 2 + 65);
-    ctx.fillText('按 R 重新開始  |  按 D 換難度', canvas.width / 2, canvas.height / 2 + 95);
+    ctx.fillText(`最高分數: ${this.highScore}`, canvas.width / 2, 460);
+    ctx.fillText('按 R 重玩  |  按 D 換難度  |  Enter 回目錄', canvas.width / 2, 490);
   }
 
   drawGameWon() {
     this.saveHighScore();
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'center';
+
     ctx.fillStyle = '#44ff88';
     ctx.font = 'bold 48px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText('YOU WIN!', canvas.width / 2, canvas.height / 2 - 40);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '20px Segoe UI';
-    ctx.fillText(`總分: ${this.player.score}  |  擊殺: ${this.player.killCount}`, canvas.width / 2, canvas.height / 2 + 5);
+    ctx.fillText('YOU WIN!', canvas.width / 2, 100);
+
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#00ffcc';
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = 'bold 22px Segoe UI';
+    ctx.fillText('===== 戰鬥報告 =====', canvas.width / 2, 145);
+    ctx.shadowBlur = 0;
+
+    const s = this.stats;
+    const mins = Math.floor(s.survivalTime / 60);
+    const secs = s.survivalTime % 60;
+    const lines = [
+      `存活時間: ${mins > 0 ? mins + '分' : ''}${secs}秒`,
+      `累計殺敵: ${this.player.killCount}`,
+      `最高COMBO: ${this.maxCombo}`,
+      `遊戲波次: ${this.wave}`,
+      `道具數: ${s.powerupsCollected}`,
+      `EXP/Level: ${Math.floor(this.player.exp)} / LV.${this.player.level}`,
+      `精準度: ${s.accuracy}%`,
+      `總分: ${this.player.score}`,
+    ];
+    ctx.font = '18px Segoe UI';
+    lines.forEach((line, i) => {
+      ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#aaaaaa';
+      ctx.fillText(line, canvas.width / 2, 185 + i * 30);
+    });
+
     if (this.player.score >= this.highScore) {
       ctx.fillStyle = '#ffee00';
-      ctx.font = 'bold 18px Segoe UI';
-      ctx.fillText('★ 新紀錄! ★', canvas.width / 2, canvas.height / 2 + 35);
+      ctx.font = 'bold 20px Segoe UI';
+      ctx.fillText('★ 新紀錄! ★', canvas.width / 2, 430);
     }
     ctx.fillStyle = '#aaaaaa';
     ctx.font = '16px Segoe UI';
-    ctx.fillText(`最高分數: ${this.highScore}`, canvas.width / 2, canvas.height / 2 + 65);
-    ctx.fillText('按 R 再玩一次  |  按 D 換難度', canvas.width / 2, canvas.height / 2 + 95);
+    ctx.fillText(`最高分數: ${this.highScore}`, canvas.width / 2, 460);
+    ctx.fillText('按 R 重玩  |  按 D 換難度  |  Enter 回目錄', canvas.width / 2, 490);
   }
 
   drawPaused() {
