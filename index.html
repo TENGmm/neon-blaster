@@ -170,6 +170,9 @@ class Player extends GameObject {
     this.speedBoostTime = 0;
     this.freezeTime = 0;
     this.magnetTime = 0;
+    this.exp = 0;
+    this.level = 1;
+    this.bulletsShot = 0;
 
     // 根據難度調整屬性
     if (difficulty === 'easy') {
@@ -1100,6 +1103,8 @@ class Game {
     this.maxCombo = 0;
     this.difficultyLabel = { easy: '簡單', normal: '普通', hard: '困難' };
     this.menuSelection = 0;
+    this.showAchievementPanel = false;
+    this.levelUpEffect = null;
     this.reset();
   }
 
@@ -1114,6 +1119,7 @@ class Game {
       hits: 0,
       accuracy: 0,
       bossKilled: false,
+      bulletsShot: 0,
     };
   }
 
@@ -1148,6 +1154,13 @@ class Game {
     this.paused = false;
     this.showFactoryPattern = true;
     this.screenShake = 0;
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.maxCombo = 0;
+    this.stats = this.initStats();
+    this.showAchievementPanel = false;
+    this.levelUpEffect = null;
+    this.gameState = 'playing';
   }
 
   saveHighScore() {
@@ -1220,28 +1233,67 @@ class Game {
   }
 
   handleInput(e) {
-    if (e.code === 'Space') {
+    // Tab 切換成就面板
+    if (e.code === 'Tab') {
       e.preventDefault();
-      if (!this.gameOver && !this.paused) this.player.shoot();
+      if (this.gameState === 'playing' && !this.paused && !this.gameOver && !this.gameWon) {
+        this.showAchievementPanel = !this.showAchievementPanel;
+      }
+      return;
     }
-    if (e.code === 'KeyP') this.paused = !this.paused;
-    if (e.code === 'KeyR') this.reset();
-    if (e.code === 'KeyD' && (this.gameOver || this.gameWon)) {
-      this.showDifficultySelect();
+
+    if (this.gameState === 'menu') {
+      // 選單導航
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+        this.menuSelection = (this.menuSelection - 1 + 3) % 3;
+      }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+        this.menuSelection = (this.menuSelection + 1) % 3;
+      }
+      // 確認選擇
+      if (e.code === 'Enter' || e.code === 'Space') {
+        e.preventDefault();
+        if (this.menuSelection === 0) {
+          // 開始遊戲
+          this.difficulty = this.selectedDifficulty;
+          localStorage.setItem('neonBlasterDifficulty', this.difficulty);
+          this.reset(this.difficulty);
+        } else if (this.menuSelection === 1) {
+          // 切換難度
+          const diffs = ['easy', 'normal', 'hard'];
+          const currentIdx = diffs.indexOf(this.selectedDifficulty);
+          this.selectedDifficulty = diffs[(currentIdx + 1) % 3];
+        } else if (this.menuSelection === 2) {
+          // 查看成就（短暫顯示）
+          this.showAchievementPanel = true;
+        }
+      }
+      return;
+    }
+
+    if (this.gameState === 'playing') {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!this.gameOver && !this.paused) this.player.shoot();
+      }
+      if (e.code === 'KeyP') this.paused = !this.paused;
+      if (e.code === 'KeyR') {
+        this.difficulty = this.selectedDifficulty;
+        this.reset();
+      }
+      if (e.code === 'KeyD' && (this.gameOver || this.gameWon)) {
+        this.gameState = 'menu';
+      }
+      // Enter 在 playing 狀態回到目錄
+      if (e.code === 'Enter' && !this.paused && !this.gameOver && !this.gameWon) {
+        this.gameState = 'menu';
+      }
     }
   }
 
   showDifficultySelect() {
-    const sel = prompt('選擇難度 (1=簡單, 2=普通, 3=困難):');
-    if (sel === '1') {
-      this.difficulty = 'easy';
-    } else if (sel === '3') {
-      this.difficulty = 'hard';
-    } else {
-      this.difficulty = 'normal';
-    }
-    localStorage.setItem('neonBlasterDifficulty', this.difficulty);
-    this.reset();
+    // 不再使用 prompt，直接切換到 menu 讓玩家選擇
+    this.gameState = 'menu';
   }
 
   update() {
@@ -1295,20 +1347,75 @@ class Game {
     this.particles = this.particles.filter(p => p.active);
     this.particles.forEach(p => p.update());
 
+    // COMBO 計時器
+    if (this.comboTimer > 0) this.comboTimer--;
+    if (this.comboTimer <= 0) this.combo = 0;
+
+    // 等級提升特效計時
+    if (this.levelUpEffect) {
+      this.levelUpEffect.timer--;
+      if (this.levelUpEffect.timer <= 0) this.levelUpEffect = null;
+    }
+
     // 浮動文字
     this.floatingTexts = this.floatingTexts.filter(t => t.active);
     this.floatingTexts.forEach(t => t.update());
+
+    // 統計更新
+    this.stats.survivalTime++;
+    this.stats.damageDealt += 35;
+    if (this.wave > this.stats.maxWave) this.stats.maxWave = this.wave;
+
+    // 成就檢查
+    this.checkAchievements();
 
     // 子彈碰撞敵人
     this.player.bullets.forEach(b => {
       this.enemies.forEach(enemy => {
         if (b.active && enemy.active && b.collidesWith(enemy)) {
           b.active = false;
+          this.player.bulletsShot++;
           if (enemy.hit(35)) {
+            // 擊殺敵人
             this.player.score += enemy.scoreValue * this.player.scoreMultiplier;
             this.player.killCount++;
             this.createExplosion(enemy.x, enemy.y, enemy.color);
             this.floatingTexts.push(new FloatingText(enemy.x, enemy.y, `+${enemy.scoreValue}`, '#ffee00'));
+
+            // COMBO 系統
+            this.combo++;
+            this.comboTimer = 120;
+            if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+
+            // COMBO 分數加成（已存在的 combo*10 機制可保留）
+            if (this.combo >= 50) {
+              this.player.score += 500;
+              this.floatingTexts.push(new FloatingText(enemy.x, enemy.y - 20, '50連擊! +500', '#ff4400'));
+            } else if (this.combo >= 25) {
+              this.player.score += 200;
+              this.floatingTexts.push(new FloatingText(enemy.x, enemy.y - 20, '25連擊! +200', '#ff8800'));
+            } else if (this.combo >= 10) {
+              this.player.score += 50;
+              this.floatingTexts.push(new FloatingText(enemy.x, enemy.y - 20, '10連擊! +50', '#ffaa00'));
+            }
+
+            // EXP 系統
+            const expGain = Math.floor(enemy.scoreValue / 2);
+            this.player.exp += expGain;
+            const newLevel = Math.floor(Math.sqrt(this.player.exp / 50)) + 1;
+            if (newLevel > this.player.level) {
+              this.player.level = newLevel;
+              if (this.player.level > this.stats.maxLevel) this.stats.maxLevel = this.player.level;
+              // 等級提升效果
+              this.levelUpEffect = { x: this.player.x, y: this.player.y - 40, timer: 90 };
+              this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 40, `LEVEL UP! LV.${this.player.level}`, '#aa44ff'));
+              this.createExplosion(this.player.x, this.player.y, '#aa44ff', 20);
+            }
+
+            // Boss 擊殺標記
+            if (enemy instanceof BossEnemy) {
+              this.stats.bossKilled = true;
+            }
           }
         }
       });
@@ -1437,37 +1544,63 @@ class Game {
       ctx.stroke();
     }
 
-    // 粒子
-    this.particles.forEach(p => p.draw(ctx));
+    // 根據遊戲狀態繪製
+    if (this.gameState === 'menu') {
+      this.drawMenu();
+    } else {
+      // 粒子
+      this.particles.forEach(p => p.draw(ctx));
 
-    // 道具
-    this.powerups.forEach(pu => pu.draw(ctx));
+      // 道具
+      this.powerups.forEach(pu => pu.draw(ctx));
 
-    // 敵人
-    this.enemies.forEach(e => {
-      e.draw(ctx);
-      // 繪製射擊敵人的子彈
-      if (e.bullets) e.bullets.forEach(b => b.draw(ctx));
-    });
+      // 敵人
+      this.enemies.forEach(e => {
+        e.draw(ctx);
+        // 繪製射擊敵人的子彈
+        if (e.bullets) e.bullets.forEach(b => b.draw(ctx));
+      });
 
-    // 子彈
-    this.player.bullets.forEach(b => b.draw(ctx));
+      // 子彈
+      this.player.bullets.forEach(b => b.draw(ctx));
 
-    // 玩家
-    this.player.draw(ctx);
+      // 玩家
+      this.player.draw(ctx);
 
-    // 浮動文字
-    this.floatingTexts.forEach(t => t.draw(ctx));
+      // 浮動文字
+      this.floatingTexts.forEach(t => t.draw(ctx));
 
-    // UI
-    this.drawUI();
+      // UI
+      this.drawUI();
+      this.drawCombo();
+      this.drawExpBar();
 
-    // 角色設計模式提示（右下角）
-    this.drawFactoryPattern();
+      // 等級提升特效
+      if (this.levelUpEffect) {
+        const alpha = this.levelUpEffect.timer / 90;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#aa44ff';
+        ctx.font = 'bold 28px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#aa44ff';
+        ctx.fillText(`LEVEL UP! LV.${this.player.level}`, this.levelUpEffect.x, this.levelUpEffect.y - (90 - this.levelUpEffect.timer) * 0.5);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
 
-    if (this.gameOver) this.drawGameOver();
-    if (this.gameWon) this.drawGameWon();
-    if (this.paused) this.drawPaused();
+      // 角色設計模式提示（右下角）
+      this.drawFactoryPattern();
+
+      // 成就面板
+      if (this.showAchievementPanel) {
+        this.drawAchievementsPanel();
+      }
+
+      if (this.gameOver) this.drawGameOver();
+      if (this.gameWon) this.drawGameWon();
+      if (this.paused) this.drawPaused();
+    }
 
     // 結束畫面震動
     if (this.screenShake > 0) {
@@ -1554,6 +1687,166 @@ class Game {
     ctx.fillText('Factory Pattern: EnemyFactory.create()', canvas.width - 10, canvas.height - 10);
   }
 
+  drawMenu() {
+    // 霓虹標題
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 30;
+    ctx.shadowColor = '#00ffcc';
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = 'bold 56px Segoe UI';
+    ctx.fillText('NEON BLASTER', canvas.width / 2, 150);
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = '#ff00ff';
+    ctx.font = 'bold 24px Segoe UI';
+    ctx.fillText('v2.0', canvas.width / 2, 185);
+    ctx.shadowBlur = 0;
+
+    // 最高分
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = 'bold 18px Segoe UI';
+    ctx.fillText(`最高分: ${this.highScore}`, canvas.width / 2, 220);
+
+    // 選項
+    const options = [
+      '▶ 開始遊戲',
+      `▶ 難度: ${this.difficultyLabel[this.selectedDifficulty]}`,
+      `▶ 成就 (已解鎖: ${this.achievementsUnlocked.length}/${this.achievements.length})`
+    ];
+
+    options.forEach((opt, i) => {
+      const y = 300 + i * 55;
+      if (i === this.menuSelection) {
+        // 選中效果
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00ffcc';
+        ctx.fillStyle = '#00ffcc';
+        ctx.font = 'bold 26px Segoe UI';
+        ctx.fillText(opt, canvas.width / 2, y);
+        ctx.shadowBlur = 0;
+        // 指標
+        ctx.fillStyle = '#ffcc00';
+        ctx.font = '20px Segoe UI';
+        ctx.fillText('▸', canvas.width / 2 - 130, y);
+        ctx.fillText('◂', canvas.width / 2 + 130, y);
+      } else {
+        ctx.fillStyle = '#888888';
+        ctx.font = '22px Segoe UI';
+        ctx.fillText(opt, canvas.width / 2, y);
+      }
+    });
+
+    // 操作提示
+    ctx.fillStyle = '#666666';
+    ctx.font = '16px Segoe UI';
+    ctx.fillText('↑↓ 或 W/S 導航  |  Enter 或 空白鍵 確認', canvas.width / 2, 500);
+    ctx.fillText('Tab 查看成就面板', canvas.width / 2, 525);
+  }
+
+  drawCombo() {
+    if (this.combo <= 0) return;
+    ctx.textAlign = 'right';
+    const flash = this.comboTimer < 60 && Math.floor(this.comboTimer / 8) % 2 === 0;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = flash ? '#ffffff' : '#ff4400';
+    ctx.fillStyle = flash ? '#ffffff' : '#ff4400';
+    ctx.font = 'bold 36px Segoe UI';
+    ctx.fillText(`🔥 ${this.combo} COMBO`, canvas.width - 20, 50);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+  }
+
+  drawExpBar() {
+    const barX = 15;
+    const barY = canvas.height - 35;
+    const barW = 180;
+    const barH = 18;
+    const level = this.player.level;
+    const expForLevel = level * level * 50;
+    const expPrev = (level - 1) * (level - 1) * 50;
+    const expCur = this.player.exp - expPrev;
+    const expNeed = expForLevel - expPrev;
+    const fillW = Math.min(1, expCur / expNeed) * barW;
+
+    // LV
+    ctx.fillStyle = '#aa44ff';
+    ctx.font = 'bold 14px Segoe UI';
+    ctx.textAlign = 'left';
+    ctx.fillText(`LV.${level}`, barX, barY - 5);
+
+    // 背景條
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(barX + 40, barY - 12, barW, barH);
+
+    // 經驗條
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#aa44ff';
+    ctx.fillStyle = '#aa44ff';
+    ctx.fillRect(barX + 40, barY - 12, fillW, barH);
+    ctx.shadowBlur = 0;
+
+    // 文字
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '11px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${expCur}/${expNeed}`, barX + 40 + barW / 2, barY + 2);
+    ctx.textAlign = 'left';
+  }
+
+  drawAchievementsPanel() {
+    // 半透明背景
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = '#ffcc00';
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = 'bold 32px Segoe UI';
+    ctx.fillText('🏆 成就面板', canvas.width / 2, 60);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '14px Segoe UI';
+    ctx.fillStyle = '#888888';
+    ctx.fillText('按 Tab 關閉', canvas.width / 2, 90);
+
+    const unlockedCount = this.achievementsUnlocked.length;
+    ctx.fillStyle = '#00ffcc';
+    ctx.font = 'bold 18px Segoe UI';
+    ctx.fillText(`已解鎖: ${unlockedCount} / ${this.achievements.length}`, canvas.width / 2, 125);
+
+    // 兩個列表
+    const cols = 2;
+    const colW = canvas.width / cols;
+    const startY = 155;
+    const itemH = 45;
+
+    this.achievements.forEach((ach, i) => {
+      const col = i < this.achievements.length / 2 ? 0 : 1;
+      const row = i % (this.achievements.length / 2);
+      const x = col * colW + colW / 2;
+      const y = startY + row * itemH;
+      const unlocked = this.achievementsUnlocked.includes(ach.id);
+
+      if (unlocked) {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#44ff88';
+        ctx.fillStyle = '#44ff88';
+        ctx.font = 'bold 16px Segoe UI';
+        ctx.fillText(`${ach.icon} ${ach.name}`, x, y);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#888888';
+        ctx.font = '13px Segoe UI';
+        ctx.fillText(ach.desc, x, y + 18);
+      } else {
+        ctx.fillStyle = '#555555';
+        ctx.font = '16px Segoe UI';
+        ctx.fillText(`🔒 ${ach.name}`, x, y);
+      }
+    });
+
+    ctx.textAlign = 'left';
+  }
+
   drawGameOver() {
     this.saveHighScore();
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
@@ -1608,6 +1901,35 @@ class Game {
     ctx.fillStyle = '#aaaaaa';
     ctx.font = '18px Segoe UI';
     ctx.fillText('按 P 鍵繼續', canvas.width / 2, canvas.height / 2 + 35);
+  }
+
+  checkAchievements() {
+    const p = this.player;
+    const checks = [
+      { id: 'first_blood', cond: p.killCount >= 1 },
+      { id: 'kill_10', cond: p.killCount >= 10 },
+      { id: 'kill_50', cond: p.killCount >= 50 },
+      { id: 'kill_100', cond: p.killCount >= 100 },
+      { id: 'combo_10', cond: this.combo >= 10 || this.maxCombo >= 10 },
+      { id: 'combo_25', cond: this.combo >= 25 || this.maxCombo >= 25 },
+      { id: 'level_5', cond: p.level >= 5 },
+      { id: 'level_10', cond: p.level >= 10 },
+      { id: 'wave_10', cond: this.wave >= 10 },
+      { id: 'no_hit', cond: p.health === p.maxHealth && this.wave >= 10 },
+      { id: 'boss_slayer', cond: this.stats.bossKilled },
+      { id: 'score_5000', cond: p.score >= 5000 },
+    ];
+
+    checks.forEach(c => {
+      if (c.cond && !this.achievementsUnlocked.includes(c.id)) {
+        this.achievementsUnlocked.push(c.id);
+        localStorage.setItem('neonBlasterAchievements', JSON.stringify(this.achievementsUnlocked));
+        const ach = this.achievements.find(a => a.id === c.id);
+        if (ach) {
+          this.floatingTexts.push(new FloatingText(canvas.width / 2, canvas.height / 2, `🎉 解鎖成就！${ach.name}`, '#ffcc00'));
+        }
+      }
+    });
   }
 
   addKey(key) { this.keys[key] = true; }
