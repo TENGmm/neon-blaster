@@ -33,6 +33,7 @@
 |------|------|
 | `↑ ↓` 或 `W S` | 選擇項目 |
 | `Enter` 或 `空白鍵` | 確認 |
+<img width="1280" height="663" alt="主選單" src="https://github.com/user-attachments/assets/f7f1a784-bee9-4bdf-9ca8-c8f004b908df" />
 
 ---
 
@@ -53,6 +54,7 @@
 | 滴水不漏 | 🛡️ | 無傷通關 |
 | Boss殺手 | 👹 | 擊敗 Boss |
 | 高分選手 | 🏆 | 分數超過 5000 |
+<img width="1280" height="672" alt="成就" src="https://github.com/user-attachments/assets/904bbfac-47b3-4222-b1f1-ff0704d8fd2c" />
 
 ### 🔥 COMBO 連擊系統
 - 2 秒內連續殺敵可累積連擊數
@@ -62,6 +64,7 @@
 ### 📊 結算統計
 - **評級系統**：S（傳說）/ A（傑出）/ B（良好）/ C（普通）/ D（繼續努力）
 - **詳細統計**：分數、擊殺數、最高連擊、存活時間、波次、等級、命中率、造成傷害、收集道具
+<img width="1268" height="659" alt="結算畫面" src="https://github.com/user-attachments/assets/86c5c95f-91af-4f00-8c08-fce3b31c3000" />
 
 ### 📈 經驗值系統
 - 殺敵獲得經驗值
@@ -80,9 +83,8 @@
 | ExploderEnemy | ◌ | 🔴 #ff2200 | 接近時會爆炸 | 15 | 15 |
 | BossEnemy | ✪ | 🟣 #ff00ff | 巨大，高血量，傷害高 | 500 | 200 |
 
+<img width="1277" height="660" alt="實機畫面" src="https://github.com/user-attachments/assets/09a81654-cb3e-4a8b-ac7d-c5d00946fc62" />
 ---
-<img width="1280" height="663" alt="主選單" src="https://github.com/user-attachments/assets/9f7f82f9-6113-422f-b7ce-ebab7acf81a0" />
-
 ## 🎁 道具系統
 
 | 道具 | 顏色 | 效果 |
