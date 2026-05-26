@@ -1,13 +1,2 @@
-# Temp files
-*.bak
-*.copy
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Editor
-.vscode/
-.idea/
-*.swp
+*.docx
+make_doc.py
