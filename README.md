@@ -81,6 +81,7 @@
 | BossEnemy | ✪ | 🟣 #ff00ff | 巨大，高血量，傷害高 | 500 | 200 |
 
 ---
+<img width="1280" height="663" alt="主選單" src="https://github.com/user-attachments/assets/9f7f82f9-6113-422f-b7ce-ebab7acf81a0" />
 
 ## 🎁 道具系統
 
