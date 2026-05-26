@@ -1153,6 +1153,7 @@ class Game {
     this.stats = this.initStats();
     this.showAchievementPanel = false;
     this.levelUpEffect = null;
+    this.gameStartTime = Date.now();
     this.gameState = 'playing';
   }
 
@@ -1365,7 +1366,7 @@ class Game {
     this.floatingTexts.forEach(t => t.update());
 
     // 統計更新
-    this.stats.survivalTime++;
+    this.stats.survivalTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
     this.stats.damageDealt += 35;
     this.stats.totalShots = this.player.bulletsShot;
     this.stats.accuracy = this.player.bulletsShot > 0 ? Math.round(this.stats.hits / this.player.bulletsShot * 100) : 0;
@@ -1944,7 +1945,7 @@ class Game {
       `存活時間: ${mins > 0 ? mins + '分' : ''}${secs}秒`,
       `累計殺敵: ${this.player.killCount}`,
       `最高COMBO: ${this.maxCombo}`,
-      `遊戲波次: ${this.wave}`,
+      `遊戲波次: ${s.maxWave}`,
       `道具數: ${s.powerupsCollected}`,
       `EXP/Level: ${Math.floor(this.player.exp)} / LV.${this.player.level}`,
       `精準度: ${s.accuracy}%`,
@@ -1991,7 +1992,7 @@ class Game {
       `存活時間: ${mins > 0 ? mins + '分' : ''}${secs}秒`,
       `累計殺敵: ${this.player.killCount}`,
       `最高COMBO: ${this.maxCombo}`,
-      `遊戲波次: ${this.wave}`,
+      `遊戲波次: ${s.maxWave}`,
       `道具數: ${s.powerupsCollected}`,
       `EXP/Level: ${Math.floor(this.player.exp)} / LV.${this.player.level}`,
       `精準度: ${s.accuracy}%`,
