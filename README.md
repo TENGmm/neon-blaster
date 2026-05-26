@@ -1,5 +1,15 @@
 # Neon Blaster - 網頁射擊遊戲
 
+## 📋 更新日誌
+
+| 版本 | 日期 | 更新內容 |
+|------|------|----------|
+| v2.0 | 2026-05-26 | ✅ 修復主選單顯示/統計數據追蹤/結算報告完整化/標題更新 |
+| v2.0 | 2026-05-26 | 🎮 完整實現：主選單 + COMBO系統 + 成就系統 + 經驗值系統 |
+| v1.0 | 2026-05-20 | 🔰 初始版本：基本射擊玩法 + 6種敵人 + 7種道具 |
+
+---
+
 ![Neon Blaster](https://img.shields.io/badge/version-v2.0-00ffcc?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Web-orange?style=flat-square)
