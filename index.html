@@ -106,8 +106,8 @@ const COLORS = {
 // ==================== ES6 OOP 類別設計 ====================
 
 /**
- * GameObject 基础类 — 演示 OOP 封裝
- * 所有游戏对象都继承此类
+
+ * 所有遊戲對象繼承
  */
 class GameObject {
   constructor(x, y, radius, color) {
@@ -139,8 +139,7 @@ class GameObject {
 }
 
 /**
- * Player 玩家類別 — 演示 ES6 Class 繼承
- * 继承自 GameObject，并扩展了移动、射击等方法
+ 
  */
 class Player extends GameObject {
   constructor(x, y, difficulty = 'normal') {
@@ -340,7 +339,7 @@ class Player extends GameObject {
 
 /**
  * Bullet 子彈類別
- * 演示簡單的類別繼承
+
  */
 class Bullet extends GameObject {
   constructor(x, y) {
@@ -379,7 +378,7 @@ class Bullet extends GameObject {
 }
 
 /**
- * Enemy 工廠類別 — 演示工廠模式 Factory Pattern
+ * Enemy 工廠類別
  * 根據型態創建不同的敵人
  */
 class EnemyFactory {
@@ -496,7 +495,7 @@ class TankEnemy extends BasicEnemy {
 }
 
 /**
- * ShooterEnemy 射擊敵人 — 會向玩家發射子彈
+ * ShooterEnemy 射擊敵人
  */
 class ShooterEnemy extends BasicEnemy {
   constructor(x, y) {
